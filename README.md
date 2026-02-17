@@ -15,6 +15,30 @@ Minimal terminal revival of `hddtemp` for modern Linux hosts.
 - `python3`
 - `smartctl` from `smartmontools`
 
+## Download
+
+Clone with HTTPS:
+
+```bash
+git clone https://github.com/warner-family-dev/hdd_temp.git
+cd hdd_temp
+```
+
+Clone with SSH:
+
+```bash
+git clone git@github.com:warner-family-dev/hdd_temp.git
+cd hdd_temp
+```
+
+Download as ZIP (no git history):
+
+```bash
+curl -L -o hdd_temp-main.zip https://github.com/warner-family-dev/hdd_temp/archive/refs/heads/main.zip
+unzip hdd_temp-main.zip
+cd hdd_temp-main
+```
+
 ## Installation
 
 Install runtime dependencies:
