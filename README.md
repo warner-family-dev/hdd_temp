@@ -15,6 +15,38 @@ Minimal terminal revival of `hddtemp` for modern Linux hosts.
 - `python3`
 - `smartctl` from `smartmontools`
 
+## Installation
+
+Install runtime dependencies:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get update
+sudo apt-get install -y python3 smartmontools
+```
+
+Run from repository root:
+
+```bash
+cd /home/keatre/dev_projects/hdd_temp
+./hddtemp /dev/sda
+```
+
+## Global Command Setup
+
+Install `hddtemp` into `/usr/local/bin`:
+
+```bash
+sudo install -m 0755 /home/keatre/dev_projects/hdd_temp/hddtemp /usr/local/bin/hddtemp
+sudo install -m 0755 /home/keatre/dev_projects/hdd_temp/hddtemp.py /usr/local/bin/hddtemp.py
+```
+
+Then call it globally from anywhere:
+
+```bash
+hddtemp /dev/sda
+```
+
 ## Usage
 
 Direct mode:

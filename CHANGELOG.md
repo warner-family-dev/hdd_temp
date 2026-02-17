@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 
 ### docu
 - Updated `README.md` with install requirements, usage examples, daemon query examples, and project notes.
+- Added explicit installation steps and global command setup instructions for `hddtemp`.
 
 ### chore
 - Added executable wrapper script `hddtemp` for easier local invocation.
