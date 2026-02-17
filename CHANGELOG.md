@@ -17,3 +17,4 @@ All notable changes to this project are documented in this file.
 - Added executable wrapper script `hddtemp` for easier local invocation.
 - Added basic unit tests in `tests/test_hddtemp.py` for device parsing, temperature extraction, and daemon payload formatting.
 - Added `.gitignore` entries for Python bytecode/cache artifacts.
+- Disconnected `hdd_temp_legacy/` from root repo tracking by ignoring it in `.gitignore`.
