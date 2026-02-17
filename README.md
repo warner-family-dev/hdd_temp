@@ -15,23 +15,25 @@ Minimal terminal revival of `hddtemp` for modern Linux hosts.
 - `python3`
 - `smartctl` from `smartmontools`
 
-## Download
+## Setup Walkthrough (Copy/Paste)
 
-Clone with HTTPS:
+### 1) Download the project (pick one block)
+
+HTTPS:
 
 ```bash
 git clone https://github.com/warner-family-dev/hdd_temp.git
 cd hdd_temp
 ```
 
-Clone with SSH:
+SSH:
 
 ```bash
 git clone git@github.com:warner-family-dev/hdd_temp.git
 cd hdd_temp
 ```
 
-Download as ZIP (no git history):
+ZIP (no git history):
 
 ```bash
 curl -L -o hdd_temp-main.zip https://github.com/warner-family-dev/hdd_temp/archive/refs/heads/main.zip
@@ -39,33 +41,31 @@ unzip hdd_temp-main.zip
 cd hdd_temp-main
 ```
 
-## Installation
+### 2) Install dependencies
 
-Install runtime dependencies:
+Debian/Ubuntu:
 
 ```bash
-# Debian/Ubuntu
 sudo apt-get update
 sudo apt-get install -y python3 smartmontools
 ```
 
-Run from repository root:
+### 3) Run locally from repo root
 
 ```bash
-cd /home/keatre/dev_projects/hdd_temp
 ./hddtemp /dev/sda
 ```
 
-## Global Command Setup
+### 4) Install global command (optional)
 
-Install `hddtemp` into `/usr/local/bin`:
+Run these commands from the repo root:
 
 ```bash
-sudo install -m 0755 /home/keatre/dev_projects/hdd_temp/hddtemp /usr/local/bin/hddtemp
-sudo install -m 0755 /home/keatre/dev_projects/hdd_temp/hddtemp.py /usr/local/bin/hddtemp.py
+sudo install -m 0755 ./hddtemp /usr/local/bin/hddtemp
+sudo install -m 0755 ./hddtemp.py /usr/local/bin/hddtemp.py
 ```
 
-Then call it globally from anywhere:
+Then use it globally:
 
 ```bash
 hddtemp /dev/sda

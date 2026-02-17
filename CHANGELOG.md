@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - Updated `README.md` with install requirements, usage examples, daemon query examples, and project notes.
 - Added explicit installation steps and global command setup instructions for `hddtemp`.
 - Added repository download instructions (HTTPS/SSH clone and ZIP archive workflow).
+- Reworked README setup instructions into copy/paste walkthrough steps and removed machine-specific absolute paths.
 
 ### chore
 - Added executable wrapper script `hddtemp` for easier local invocation.
