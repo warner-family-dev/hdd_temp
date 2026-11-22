@@ -58,28 +58,31 @@ def parse_device_spec(raw: str) -> DeviceSpec:
     return DeviceSpec(raw=raw, drive=raw, smartctl_type=None)
 
 
-def parse_int(value: Any) -> Optional[int]:
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        match = re.search(r"-?\d+", value)
-        if match:
-            return int(match.group(0))
-    return None
-
-
 def normalize_temp_c(value: Any) -> Optional[int]:
-    parsed = parse_int(value)
-    if parsed is None:
+    """Decode a Celsius field without guessing its units."""
+    if isinstance(value, str) and re.fullmatch(r"-?\d{1,3}", value.strip()):
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    # Some NVMe reports can be in Kelvin.
-    if parsed > 200:
-        parsed = parsed - 273
-    if parsed < -80 or parsed > 200:
+    return int(value) if -80 <= value <= 200 else None
+
+
+def ata_temperature(row: Dict[str, Any]) -> Optional[int]:
+    # SMART attributes are vendor-defined, even when the ID is commonly
+    # used for temperature. The normalized score is not a Celsius reading.
+    if row.get("name") not in (
+        "Temperature_Celsius", "Temperature_Internal", "Drive_Temperature",
+        "Airflow_Temperature_Cel", "Airflow_Temperature_Celsius",
+    ):
         return None
-    return parsed
+    raw = row.get("raw")
+    if not isinstance(raw, dict):
+        return None
+    if "string" in raw:
+        # smartctl can unpack current/min/max from a single raw integer.
+        match = re.fullmatch(r"(-?\d{1,3})(?: \(Min/Max -?\d+/-?\d+\))?", str(raw["string"]).strip())
+        return normalize_temp_c(match.group(1)) if match else None
+    return normalize_temp_c(raw.get("value"))
 
 
 def first_non_empty_string(candidates: Sequence[Any]) -> Optional[str]:
@@ -139,12 +142,7 @@ def extract_temperature_c(data: Dict[str, Any]) -> Optional[int]:
                         continue
                     if row.get("id") != attr_id:
                         continue
-                    raw = row.get("raw", {})
-                    if isinstance(raw, dict):
-                        parsed = normalize_temp_c(raw.get("value"))
-                        if parsed is not None:
-                            return parsed
-                    parsed = normalize_temp_c(row.get("value"))
+                    parsed = ata_temperature(row)
                     if parsed is not None:
                         return parsed
 
@@ -168,22 +166,28 @@ def gather_messages(data: Dict[str, Any], stderr: str) -> str:
     return "\n".join(messages)
 
 
-def infer_status_from_messages(messages: str, has_temp: bool) -> str:
+def probe_status(data: Dict[str, Any], messages: str, code: int, temp: Optional[int]) -> str:
     lowered = messages.lower()
-    if "standby" in lowered or "sleep" in lowered:
-        return "SLP"
-    if "permission denied" in lowered or "unable to open device" in lowered:
-        return "ERR"
-    if "no such device" in lowered or "cannot open" in lowered:
-        return "ERR"
-    if "smart support is: unavailable" in lowered:
-        return "NA"
-    if "unknown usb bridge" in lowered:
-        return "NA"
-    if has_temp:
+    # Some SCSI devices supply a temperature even without SMART support.
+    if temp is not None and code >= 0 and not (code & 0x03):
         return "KNOWN"
-    if "temperature" in lowered and "not" in lowered:
-        return "NOS"
+    sleeping = data.get("power_mode") in ("STANDBY", "SLEEP") or re.search(
+        r"\bdevice is in (?:standby|sleep) mode\b", lowered
+    )
+    if sleeping and code in (0, 2):
+        return "SLP"
+    if "unknown usb bridge" in lowered or "smart support is: unavailable" in lowered:
+        return "NA"
+    # Bits 0 and 1 signal bad arguments or an open/identify failure.
+    if code < 0 or code & 0x03 or any(message in lowered for message in (
+        "permission denied", "unable to open device", "no such device", "cannot open",
+    )):
+        return "ERR"
+    if code & 0x04:  # A SMART command failed and we have no usable reading.
+        return "ERR"
+    support = data.get("smart_support")
+    if isinstance(support, dict) and support.get("available") is False:
+        return "NA"
     return "NOS"
 
 
@@ -201,6 +205,7 @@ def run_smartctl(spec: DeviceSpec, wake_up: bool, timeout: int = 10) -> DiskRead
             check=False,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=timeout,
         )
     except FileNotFoundError:
@@ -210,6 +215,8 @@ def run_smartctl(spec: DeviceSpec, wake_up: bool, timeout: int = 10) -> DiskRead
             status="ERR",
             detail="smartctl not found (install smartmontools)",
         )
+    except OSError as exc:
+        return DiskReading(spec.drive, spec.drive, "ERR", detail=str(exc))
     except subprocess.TimeoutExpired:
         return DiskReading(
             drive=spec.drive,
@@ -220,10 +227,15 @@ def run_smartctl(spec: DeviceSpec, wake_up: bool, timeout: int = 10) -> DiskRead
 
     stdout = proc.stdout or ""
     stderr = proc.stderr or ""
-    parsed: Dict[str, Any] = {}
 
+    if not stdout.strip():
+        status = probe_status({}, stderr, proc.returncode, None)
+        if status not in ("SLP", "NA"):
+            status = "ERR"
+        detail = stderr.strip() or f"no smartctl output (exit {proc.returncode})"
+        return DiskReading(spec.drive, spec.drive, status, detail=detail)
     try:
-        parsed = json.loads(stdout) if stdout.strip() else {}
+        parsed = json.loads(stdout)
     except json.JSONDecodeError:
         message = stderr.strip() or stdout.strip() or "invalid smartctl output"
         return DiskReading(
@@ -233,26 +245,16 @@ def run_smartctl(spec: DeviceSpec, wake_up: bool, timeout: int = 10) -> DiskRead
             detail=message,
         )
 
+    if not isinstance(parsed, dict):
+        return DiskReading(spec.drive, spec.drive, "ERR", detail="expected a smartctl JSON object")
+
     model = extract_model(parsed, spec.drive)
     temperature_c = extract_temperature_c(parsed)
-    messages = gather_messages(parsed, stderr)
-    status = infer_status_from_messages(messages, has_temp=(temperature_c is not None))
-
-    if temperature_c is not None:
-        return DiskReading(
-            drive=spec.drive,
-            model=model,
-            status="KNOWN",
-            temperature_c=temperature_c,
-            detail=messages.strip(),
-        )
-
-    return DiskReading(
-        drive=spec.drive,
-        model=model,
-        status=status,
-        detail=messages.strip(),
-    )
+    messages = gather_messages(parsed, stderr).strip()
+    status = probe_status(parsed, messages, proc.returncode, temperature_c)
+    if status == "ERR" and not messages:
+        messages = f"smartctl failed (exit {proc.returncode})"
+    return DiskReading(spec.drive, model, status, temperature_c if status == "KNOWN" else None, messages)
 
 
 def convert_temperature(temp_c: int, unit: str) -> int:
@@ -324,7 +326,7 @@ class ReadingCache:
             now = time.monotonic()
             if not self.readings or (now - self.last_update) >= self.min_interval:
                 self.readings = [run_smartctl(device, wake_up=self.wake_up) for device in self.devices]
-                self.last_update = now
+                self.last_update = time.monotonic()
             return list(self.readings)
 
 
@@ -425,21 +427,23 @@ def run_daemon_mode(args: argparse.Namespace, devices: Sequence[DeviceSpec]) -> 
     if not args.foreground:
         daemonize()
 
-    stop_requested = {"value": False}
+    server.timeout = 0.25
+    stop_requested = False
 
     def handle_stop(_signum: int, _frame: Any) -> None:
-        stop_requested["value"] = True
-        server.shutdown()
+        nonlocal stop_requested
+        stop_requested = True
 
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, handle_stop)
 
     try:
-        server.serve_forever()
+        while not stop_requested:
+            server.handle_request()
     finally:
         server.server_close()
 
-    return 0 if stop_requested["value"] else 0
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:

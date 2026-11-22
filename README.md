@@ -12,8 +12,8 @@ Minimal terminal revival of `hddtemp` for modern Linux hosts.
 ## Requirements
 
 - Linux
-- `python3`
-- `smartctl` from `smartmontools`
+- Python 3.7 or newer
+- `smartctl` with JSON output (`-j`) from `smartmontools`
 
 ## Setup Walkthrough (Copy/Paste)
 
@@ -103,8 +103,70 @@ Query daemon:
 nc 127.0.0.1 7634
 ```
 
-## Notes
+## Optional systemd service
 
-- If `smartctl` is missing, the tool reports an error for each queried drive.
-- Access to some devices can require elevated permissions.
-- Historical source remains under `hdd_temp_legacy/` for reference.
+After installing the global command, create the service's defaults file with
+`sudoedit /etc/default/hddtemp-compat`. List your actual drive paths in the
+order clients should receive them. For example:
+
+```ini
+HDDTEMP_DRIVES="/dev/sda NVME:/dev/nvme0n1"
+```
+
+The service runs in the foreground on IPv4 loopback port 7634. Stop any
+existing listener on that port before enabling it. Run from the repository:
+
+```bash
+sudo install -m 0644 systemd/hddtemp-compat.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hddtemp-compat.service
+systemctl status hddtemp-compat.service
+nc 127.0.0.1 7634
+```
+
+Restart the service after changing the drive list. Use your existing manual
+`--listen` configuration for remote clients. Reading some devices requires
+elevated privileges. The default probe passes `-n standby` to smartctl.
+Power-mode detection depends on the drive and controller. Use `-w` only if
+you want to allow waking a disk.
+
+## Reading compatibility
+
+Direct and daemon modes prefer smartctl's current Celsius measurement.
+The ATA fallback accepts recognized temperature attributes with a Celsius
+raw value or a decoded current/min/max string. Vendor health scores, packed
+integers without a decoded temperature, and ambiguous fields can now yield
+`NOS`. In particular, an SSD life percentage is never a temperature.
+A confirmed sleeping drive yields `SLP`. An unsuccessful probe yields
+`ERR` when it cannot produce a reading or a more specific status.
+SMART health warnings can accompany a valid temperature.
+
+Direct mode writes temperatures to stdout and diagnostics to stderr.
+A hard probe error gives exit status 1. The legacy `-n -q` mode prints
+`0` for an unreadable drive and treats it as success, so consumers needing
+to distinguish an error from zero degrees should use another output mode.
+
+## Tests and release checks
+
+```bash
+python3 -B -m unittest discover -s tests -v
+```
+
+The suite runs without root or disk access. It invokes the installed-style
+launcher with a fake smartctl and checks the TCP response, stop signals,
+and reuse of the same port. CI includes Python 3.7 and the current Python 3
+release, plus distribution environments:
+
+- Debian 12 and 13
+- Ubuntu 22.04 LTS and 24.04 LTS
+
+Before replacing a working installation, keep its executable and Python file
+together. During normal polling, compare the old and new CLI output for
+representative drives. Check known-good temperatures against smartctl's
+explicit current reading and account for normal drift between samples.
+Use a drive already in standby to verify the default probe preserves its
+power state using the controller's normal monitoring. Test your existing
+TCP client against a foreground candidate on an unused loopback port before
+switching port 7634. Record the model, controller, smartctl version, and
+any reading corrected to an unavailable status. Restore the previous pair
+of files and restart the original service if the comparison fails.

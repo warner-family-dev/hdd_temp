@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+- Validate smartctl output and use temperature-specific Celsius fields. Vendor
+  health scores and ambiguous raw attributes can now report no sensor.
+- Distinguish probe errors, standby, and readable temperatures with SMART warnings.
+- Stop the TCP daemon cleanly on SIGTERM/SIGINT and measure the poll interval
+  from completion of each refresh.
+- Add launcher and protocol compatibility tests, CI, and an optional loopback
+  systemd service.
+
 ## v0.0.1 (branch: main) - 2026-02-17
 
 ### feat

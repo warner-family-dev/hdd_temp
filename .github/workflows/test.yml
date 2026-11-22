@@ -1,0 +1,26 @@
+name: Compatibility tests
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['python:3.7-slim', 'python:3-slim', 'debian:bookworm-slim', 'debian:trixie-slim', 'ubuntu:22.04', 'ubuntu:24.04']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run launcher and daemon tests
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" -w /src "$TEST_IMAGE" sh -ec '
+            if ! command -v python3 >/dev/null; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends python3 smartmontools
+            fi
+            python3 -B -m unittest discover -s tests -v
+          '
