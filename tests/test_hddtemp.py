@@ -14,7 +14,7 @@ class HDDTempTests(unittest.TestCase):
             "ata_smart_attributes": {
                 "table": [
                     {"id": 1, "raw": {"value": 0}},
-                    {"id": 194, "raw": {"value": 34}},
+                    {"id": 194, "name": "Temperature_Celsius", "raw": {"value": 34}},
                 ]
             }
         }

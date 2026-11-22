@@ -1,3 +1,48 @@
+# Python environments and generated files
 __pycache__/
 *.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local reference checkout
 hdd_temp_legacy/
+
+# Workstation preferences and editor backups
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Local configuration, credentials, and private keys
+.env
+.env.*
+.envrc
+.secrets/
+secrets/
+.ssh/
+.netrc
+.git-credentials
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Keep personal notes and host-specific service configuration here
+/private/
+/local/
+/hddtemp-compat
+/hddtemp-compat.service.d/
+
+# Raw drive reports can contain serial numbers and hardware identifiers.
+# Put arbitrary capture filenames in the top-level captures directory.
+/captures/
+smartctl*.json
+smartctl*.txt
+smartctl*.log
+*.log

@@ -1,0 +1,15 @@
+[Unit]
+Description=Drive temperature service for hddtemp clients
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/hddtemp-compat
+ExecStart=/usr/local/bin/hddtemp -d -F -l 127.0.0.1 -p 7634 $HDDTEMP_DRIVES
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
